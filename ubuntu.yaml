@@ -1,0 +1,368 @@
+image:
+  name: debian-disco-x86_64
+  distribution: debian
+  release: bookworm
+  description: |-
+    Debian {{ image.release }}
+  architecture: x86_64
+
+source:
+  downloader: debootstrap
+  same_as: gutsy
+  url: http://deb.debian.org/debian
+  keyserver: keyserver.ubuntu.com
+  keys:
+  - 0x126C0D24BD8A2942CC7DF8AC7638D0442B90D010
+  - 0xA1BD8E9D78F7FE5C3E65D8AF8B48AD6246925553
+  - 0x6D33866EDD8FFA41C0143AEDDCC9EFBF77E11517
+  - 0x80D15823B7FD1561F9F7BCDDDC30D7C23CBBABEE
+  - 0xF8D2585B8783D481
+
+targets:
+  lxc:
+    create_message: |-
+      You just created an {{ image.description }} container.
+
+      To enable SSH, run: apt install openssh-server
+      No default root or user password are set by LXC.
+    config:
+    - type: all
+      before: 5
+      content: |-
+        lxc.include = LXC_TEMPLATE_CONFIG/ubuntu.common.conf
+
+    - type: user
+      before: 5
+      content: |-
+        lxc.include = LXC_TEMPLATE_CONFIG/ubuntu.userns.conf
+
+    - type: all
+      after: 4
+      content: |-
+        lxc.include = LXC_TEMPLATE_CONFIG/common.conf
+
+    - type: user
+      after: 4
+      content: |-
+        lxc.include = LXC_TEMPLATE_CONFIG/userns.conf
+
+    - type: all
+      content: |-
+        lxc.arch = {{ image.architecture_personality }}
+
+files:
+- path: /etc/hostname
+  generator: hostname
+
+- path: /etc/hosts
+  generator: hosts
+
+- path: /etc/resolvconf/resolv.conf.d/original
+  generator: remove
+
+- path: /etc/resolvconf/resolv.conf.d/tail
+  generator: remove
+
+- path: /etc/machine-id
+  generator: dump
+
+- path: /etc/user/profile
+  generator: copy
+  source: /etc/profile
+
+- path: /var/lib/dbus/machine-id
+  generator: remove
+
+- name: meta-data
+  generator: cloud-init
+  variants:
+  - cloud
+
+- name: network-config
+  generator: cloud-init
+  variants:
+  - cloud
+
+- name: user-data
+  generator: cloud-init
+  variants:
+  - cloud
+
+- name: vendor-data
+  generator: cloud-init
+  variants:
+  - cloud
+
+- path: /etc/systemd/system/barman-exporter.service
+  generator: dump
+  content: |-
+    [Unit]
+    Description=Barman Exporter
+    After=network-online.target
+
+    [Service]
+    Type=simple
+    User=barman
+    Group=barman
+    ExecStart=/var/lib/barman/.local/bin/barman-exporter -l 0.0.0.0:9780 -c 3600
+    SyslogIdentifier=barman_exporter
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+
+- path: /etc/barman.conf.template
+  generator: dump
+  content: |-
+    ; Commented lines show the default values
+
+    [barman]
+    ; archiver = off
+    backup_method = rsync
+    ; backup_directory = %(barman_home)s/%(name)s
+
+    backup_options = concurrent_backup
+
+    ; This must be set to the BARMAN_DATA_DIR environment variable
+    barman_home = ${BARMAN_DATA_DIR}
+
+    barman_user = barman
+
+    ; barman_lock_directory = %(barman_home)s
+    compression = gzip
+    configuration_files_directory = /etc/barman/barman.d
+    last_backup_maximum_age = 1 week
+    minimum_redundancy = 1
+    ;network_compression = true
+    retention_policy = RECOVERY WINDOW of 3 MONTHS
+    ; retention_policy_mode = auto
+    ;reuse_backup = link
+    streaming_archiver = on
+    ; wal_retention_policy = main
+
+    ; use empty log_file for stderr output
+    log_file = ""
+    log_level = INFO
+
+- path: /etc/barman/barman.d/pg.conf.template
+  generator: dump
+  content: |-
+    [${DB_HOST}]
+    active = true
+    description =  "PostgreSQL Database (Streaming-Only)"
+    conninfo = host=${DB_HOST} user=${DB_USER} dbname=${DB_USER_DATABASE} port=${DB_PORT}
+    streaming_conninfo = host=${DB_HOST} user=${DB_REPLICATION_USER} port=${DB_PORT}
+    backup_method = ${DB_BACKUP_METHOD}
+    streaming_archiver = on
+    slot_name = ${DB_SLOT_NAME}
+    create_slot = auto
+
+- path: /etc/barman/add-server.sh
+  generator: dump
+  content: |-
+    #!/bin/bash
+
+    if [ "$EUID" -ne 0 ]
+      then echo "Please run as root"
+      exit
+    fi
+
+    if [ ! -f ~barman/.ssh/id_rsa.pub ]; then
+      ssh-keygen -b 2048 -t rsa -f ~barman/.ssh/id_rsa -q -N ""
+      chmod 700 ~barman/.ssh
+      chown barman:barman -R ~barman/.ssh
+      chmod 600 ~barman/.ssh/id_rsa
+      touch ~barman/.ssh/authorized_keys
+      chmod 600 ~barman/.ssh/authorized_keys
+    fi
+
+    export DB_HOST=
+    export DB_PORT=5432
+    export DB_USER=
+    export DB_USER_PASSWORD=
+    exoprt DB_USER_DATABASE=
+    export DB_REPLICATION_USER=
+    export DB_REPLICATION_PASSWORD=
+    export DB_BACKUP_METHOD=postgres
+    export DB_SLOT_NAME=barman
+    export DB_POSTGRES_PUBLIC_KEY=
+
+    whiptail --title "Barman" --msgbox "Configure Barman" 11 58
+
+    DB_HOST=$(whiptail --inputbox "Postgres host address?" 11 58 "" --title "Postgres host address" 3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        clear
+        exit 1
+    fi
+
+    DB_USER_DATABASE=$(whiptail --inputbox "Postgres db?" 11 58 "postgres" --title "Database" 3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        clear
+        exit 1
+    fi
+
+    DB_USER=$(whiptail --inputbox "Connection user?" 11 58 "barman" --title "Username for the connection user" 3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        clear
+        exit 1
+    fi
+
+    DB_USER_PASSWORD=$(whiptail --passwordbox "Connection password?" 11 58 "" --title "Password for the connection user" 3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        clear
+        exit 1
+    fi
+
+    DB_REPLICATION_USER=$(whiptail --inputbox "Replication user" 11 58 "barman" --title "Replication user to use for streaming" 3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        clear
+        exit 1
+    fi
+
+    DB_REPLICATION_PASSWORD=$(whiptail --passwordbox "Replication password" 11 58 "" --title "Replication user password to use for streaming" 3>&1 1>&2 2>&3)
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+        clear
+        exit 1
+    fi
+
+    clear
+
+    cat /etc/barman/barman.d/pg.conf.template | envsubst > /etc/barman/barman.d/${DB_HOST}.conf
+
+    echo "${DB_HOST}:${DB_PORT}:*:${DB_USER}:${DB_USER_PASSWORD}" >> ~barman/.pgpass
+    echo "${DB_HOST}:${DB_PORT}:*:${DB_REPLICATION_USER}:${DB_REPLICATION_PASSWORD}" >> ~barman/.pgpass
+
+    echo "* * * * * barman /usr/local/bin/barman receive-wal --create-slot ${DB_HOST}; /usr/local/bin/barman cron" >> /etc/cron.d/barman
+
+    echo $DB_POSTGRES_PUBLIC_KEY >> ~barman/.ssh/authorized_keys
+    echo "Add Barman public key to postgres server postgres@$DB_HOST:~/.ssh/authorized_keys"
+    echo "-------"
+    cat ~barman/.ssh/id_rsa.pub
+    echo "-------"
+
+    read  -n 1 -p "Continue once adding public keys on each machine:"
+
+    echo "Checking/Creating replication slot"
+    barman replication-status ${DB_HOST} --minimal --target=wal-streamer | grep barman || barman receive-wal --create-slot ${DB_HOST}
+    barman replication-status ${DB_HOST} --minimal --target=wal-streamer | grep barman || barman receive-wal --reset ${DB_HOST}
+
+    unset DB_HOST=
+    unset DB_PORT=5432
+    unset DB_USER=
+    unset DB_USER_PASSWORD=
+    unset DB_REPLICATION_USER=
+    unset DB_REPLICATION_PASSWORD=
+    unset DB_BACKUP_METHOD=postgres
+    unset DB_SLOT_NAME=barman
+    unset DB_POSTGRES_PUBLIC_KEY=
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+  sets:
+  - packages:
+    - openssh-client
+    - vim
+    - cron
+    - rsync
+    - gettext-base
+    - procps
+    - postgresql-client-9.5
+    - postgresql-client-9.6
+    - postgresql-client-10
+    - postgresql-client-11
+    - postgresql-client-12
+    - postgresql-client-13
+    - postgresql-client-14
+    - postgresql-client-15
+    - postgresql-client-16
+    - barman
+    - pipx
+    action: install
+
+  - packages:
+    - cloud-init
+    action: install
+    variants:
+    - cloud
+
+  repositories:
+  - name: sources.list
+    url: |-
+      deb http://deb.debian.org/debian {{ image.release }} main
+      deb http://security.debian.org/debian-security {{ image.release }}-security/updates main
+      deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt/ {{ image.release }}-pgdg main
+    architectures:
+    - amd64
+    - i386
+
+  - name: sources.list.d/pgdg.list
+    url: |-
+      deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt/ {{ image.release }}-pgdg main
+    architectures:
+    - amd64
+    - i386
+
+actions:
+- trigger: post-unpack
+  action: |-
+    #!/bin/sh
+    apt install curl ca-certificates -y
+    install -d /usr/share/postgresql-common/pgdg
+    curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+- trigger: post-packages
+  action: |-
+    #!/bin/sh
+    set -eux
+
+    # Enable systemd-networkd
+    systemctl enable systemd-networkd
+  releases:
+  - bookworm
+
+- trigger: post-packages
+  action: |-
+    #!/bin/sh
+    set -eux
+
+    # Cleanup underlying /run
+    mount -o bind / /mnt
+    rm -rf /mnt/run/*
+    umount /mnt
+
+    # Cleanup temporary shadow paths
+    rm /etc/*-
+
+    su - barman bash -c 'pipx install barman-exporter'
+
+- trigger: post-files
+  action: |-
+    #!/bin/sh
+    set -eux
+
+    chmod +x /etc/barman/add-server.sh
+
+    install -d -m 0700 -o barman -g barman ~barman/.ssh
+    su - barman bash -c 'echo -e "Host *\n\tCheckHostIP no" > ~/.ssh/config'
+
+    touch ~barman/.pgpass
+    chown barman:barman ~barman/.pgpass
+    chmod 600 ~barman/.pgpass
+
+    export BARMAN_DATA_DIR=~barman
+    cat /etc/barman.conf.template | envsubst > /etc/barman.conf
+
+    echo "0 4 * * * barman /usr/local/bin/barman backup all" >> /etc/cron.d/barman
+  variants:
+  - default
+
+mappings:
+  architecture_map: debian
