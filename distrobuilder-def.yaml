@@ -1,6 +1,0 @@
-image:
-  distribution: ubuntu
-source:
-  downloader: debootstrap
-packages:
-  manager: apt
