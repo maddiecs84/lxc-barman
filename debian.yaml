@@ -162,6 +162,8 @@ files:
   content: |-
     #!/bin/bash
 
+    CONFIG_FILE_ARG=$1
+
     if [ "$EUID" -ne 0 ]
       then echo "Please run as root"
       exit
@@ -187,51 +189,56 @@ files:
     export DB_SLOT_NAME=barman
     export DB_POSTGRES_PUBLIC_KEY=
 
-    whiptail --title "Barman" --msgbox "Configure Barman" 11 58
+    if [ -z "$CONFIG_FILE_ARG" ]
+    then
+      whiptail --title "Barman" --msgbox "Configure Barman" 11 58
 
-    DB_HOST=$(whiptail --inputbox "Postgres host address?" 11 58 "" --title "Postgres host address" 3>&1 1>&2 2>&3)
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        clear
-        exit 1
+      DB_HOST=$(whiptail --inputbox "Postgres host address?" 11 58 "" --title "Postgres host address" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
+      DB_USER_DATABASE=$(whiptail --inputbox "Postgres db?" 11 58 "postgres" --title "Database" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
+      DB_USER=$(whiptail --inputbox "Connection user?" 11 58 "barman" --title "Username for the connection user" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
+      DB_USER_PASSWORD=$(whiptail --passwordbox "Connection password?" 11 58 "" --title "Password for the connection user" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
+      DB_REPLICATION_USER=$(whiptail --inputbox "Replication user" 11 58 "barman" --title "Replication user to use for streaming" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
+      DB_REPLICATION_PASSWORD=$(whiptail --passwordbox "Replication password" 11 58 "" --title "Replication user password to use for streaming" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
+      clear
+    else
+      source $CONFIG_FILE_ARG
     fi
-
-    DB_USER_DATABASE=$(whiptail --inputbox "Postgres db?" 11 58 "postgres" --title "Database" 3>&1 1>&2 2>&3)
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        clear
-        exit 1
-    fi
-
-    DB_USER=$(whiptail --inputbox "Connection user?" 11 58 "barman" --title "Username for the connection user" 3>&1 1>&2 2>&3)
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        clear
-        exit 1
-    fi
-
-    DB_USER_PASSWORD=$(whiptail --passwordbox "Connection password?" 11 58 "" --title "Password for the connection user" 3>&1 1>&2 2>&3)
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        clear
-        exit 1
-    fi
-
-    DB_REPLICATION_USER=$(whiptail --inputbox "Replication user" 11 58 "barman" --title "Replication user to use for streaming" 3>&1 1>&2 2>&3)
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        clear
-        exit 1
-    fi
-
-    DB_REPLICATION_PASSWORD=$(whiptail --passwordbox "Replication password" 11 58 "" --title "Replication user password to use for streaming" 3>&1 1>&2 2>&3)
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        clear
-        exit 1
-    fi
-
-    clear
 
     cat /etc/barman/barman.d/pg.conf.template | envsubst > /etc/barman/barman.d/${DB_HOST}.conf
 
