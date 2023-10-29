@@ -188,6 +188,7 @@ files:
     export DB_BACKUP_METHOD=postgres
     export DB_SLOT_NAME=barman
     export DB_POSTGRES_PUBLIC_KEY=
+    export DB_SERVER_POSTGRES_PASSWORD=
 
     if [ -z "$CONFIG_FILE_ARG" ]
     then
@@ -235,6 +236,13 @@ files:
           exit 1
       fi
 
+      DB_SERVER_POSTGRES_PASSWORD=$(whiptail --passwordbox "Remote server Postgres password" 11 58 "" --title "Password for the database servers Postgres user" 3>&1 1>&2 2>&3)
+      exitstatus=$?
+      if [ $exitstatus != 0 ]; then
+          clear
+          exit 1
+      fi
+
       clear
     else
       source $CONFIG_FILE_ARG
@@ -248,12 +256,8 @@ files:
     echo "* * * * * barman /usr/local/bin/barman receive-wal --create-slot ${DB_HOST}; /usr/local/bin/barman cron" >> /etc/cron.d/barman
 
     echo $DB_POSTGRES_PUBLIC_KEY >> ~barman/.ssh/authorized_keys
-    echo "Add Barman public key to postgres server postgres@$DB_HOST:~/.ssh/authorized_keys"
-    echo "-------"
-    cat ~barman/.ssh/id_rsa.pub
-    echo "-------"
-
-    read  -n 1 -p "Continue once adding public keys on each machine:"
+    chown barman:barman ~barman/.ssh/authorized_keys
+    sshpass -p $DB_SERVER_POSTGRES_PASSWORD ssh-copy-id -i ~barman/.ssh/id_rsa.pub postgres@$DB_HOST
 
     echo "Checking/Creating replication slot"
     barman replication-status ${DB_HOST} --minimal --target=wal-streamer | grep barman || barman receive-wal --create-slot ${DB_HOST}
@@ -292,6 +296,7 @@ packages:
     - postgresql-client-16
     - barman
     - pipx
+    - sshpass
     action: install
 
   - packages:
