@@ -182,7 +182,7 @@ files:
     export DB_PORT=5432
     export DB_USER=
     export DB_USER_PASSWORD=
-    exoprt DB_USER_DATABASE=
+    export DB_USER_DATABASE=
     export DB_REPLICATION_USER=
     export DB_REPLICATION_PASSWORD=
     export DB_BACKUP_METHOD=postgres
@@ -267,6 +267,7 @@ files:
     unset DB_PORT=5432
     unset DB_USER=
     unset DB_USER_PASSWORD=
+    unset DB_USER_DATABASE=
     unset DB_REPLICATION_USER=
     unset DB_REPLICATION_PASSWORD=
     unset DB_BACKUP_METHOD=postgres
