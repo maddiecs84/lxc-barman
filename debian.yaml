@@ -273,7 +273,7 @@ files:
     chown barman:barman ~barman/.ssh/authorized_keys
 
     # Copy the public key to the remote postgres server
-    sshpass -p $DB_SERVER_POSTGRES_PASSWORD ssh-copy-id -i ~barman/.ssh/id_rsa.pub postgres@$DB_HOST
+    sshpass -p $DB_SERVER_POSTGRES_PASSWORD ssh-copy-id -o StrictHostKeyChecking=no -i ~barman/.ssh/id_rsa.pub postgres@$DB_HOST
 
     echo "Checking/Creating replication slot"
     barman replication-status ${DB_HOST} --minimal --target=wal-streamer | grep barman || barman receive-wal --create-slot ${DB_HOST}
