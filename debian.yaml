@@ -153,6 +153,7 @@ files:
     conninfo = host=${DB_HOST} user=${DB_USER} dbname=${DB_USER_DATABASE} port=${DB_PORT}
     streaming_conninfo = host=${DB_HOST} user=${DB_REPLICATION_USER} port=${DB_PORT}
     backup_method = ${DB_BACKUP_METHOD}
+    backup_directory = ${BARMAN_BACKUP_DIR}
     streaming_archiver = on
     slot_name = ${DB_SLOT_NAME}
     create_slot = auto
@@ -246,6 +247,10 @@ files:
       clear
     else
       source $CONFIG_FILE_ARG
+    fi
+
+    if [ -z "$BARMAN_BACKUP_DIR" ] then;
+      export BARMAN_BACKUP_DIR=~barman/$DB_HOST
     fi
 
     cat /etc/barman/barman.d/pg.conf.template | envsubst > /etc/barman/barman.d/${DB_HOST}.conf
