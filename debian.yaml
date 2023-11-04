@@ -190,6 +190,7 @@ files:
     export DB_SLOT_NAME=barman
     export DB_POSTGRES_PUBLIC_KEY=
     export DB_SERVER_POSTGRES_PASSWORD=
+    export BARMAN_BACKUP_DIR=
 
     if [ -z "$CONFIG_FILE_ARG" ]
     then
@@ -249,8 +250,9 @@ files:
       source $CONFIG_FILE_ARG
     fi
 
-    if [ -z "$BARMAN_BACKUP_DIR" ] then;
-      export BARMAN_BACKUP_DIR=~barman/$DB_HOST
+    if [ -z "$BARMAN_BACKUP_DIR" ];
+    then
+      BARMAN_BACKUP_DIR=~barman/$DB_HOST
     fi
 
     cat /etc/barman/barman.d/pg.conf.template | envsubst > /etc/barman/barman.d/${DB_HOST}.conf
