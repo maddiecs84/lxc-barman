@@ -93,6 +93,22 @@ files:
   variants:
   - cloud
 
+- path: /etc/systemd/system/node-exporter.service
+  generator: dump
+  content: |-
+    [Unit]
+    Description=Prometheus Node Exporter
+    After=network-online.target
+
+    [Service]
+    Type=simple
+    ExecStart=/etc/prometheus/node-exporter/pdc
+    SyslogIdentifier=node_exporter
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+
 - path: /etc/systemd/system/barman-exporter.service
   generator: dump
   content: |-
@@ -347,6 +363,17 @@ actions:
     install -d /usr/share/postgresql-common/pgdg
     curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
 
+- trigger: post-unpack
+  action: |-
+    #!/bin/sh
+    apt install wget ca-certificates -y
+    install -d /usr/share/prometheus
+    VERSION=1.6.1
+    wget -O /usr/share/prometheus/node-exporter.tar.gz https://github.com/prometheus/node_exporter/releases/download/v${VERSION}/node_exporter-${VERSION}.linux-amd64.tar.gz
+  architectures:
+    - x86_64
+    - amd64
+
 - trigger: post-packages
   action: |-
     #!/bin/sh
@@ -354,6 +381,17 @@ actions:
 
     # Enable systemd-networkd
     systemctl enable systemd-networkd
+  releases:
+  - bookworm
+
+- trigger: post-packages
+  action: |-
+    #!/bin/sh
+    set -eux
+
+    mkdir -p /etc/prometheus/node-exporter
+    tar -xvzf /usr/share/prometheus/node-exporter.tar.gz -C /etc/prometheus/node-exporter --strip-components 1
+    rm /usr/share/prometheus/node-exporter.tar.gz
   releases:
   - bookworm
 
