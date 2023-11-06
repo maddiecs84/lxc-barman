@@ -291,6 +291,12 @@ files:
       echo "${RECEIVE_WAL_CRON_JOB}" >> /etc/cron.d/barman
     fi
 
+    BACKUP_DB_CRON_JOB="0 9 * * * barman /usr/local/bin/barman backup ${DB_HOST}; /usr/local/bin/barman cron"
+    if ! grep -q -F "$BACKUP_DB_CRON_JOB" /etc/cron.d/barman;
+    then
+      echo "${BACKUP_DB_CRON_JOB}" >> /etc/cron.d/barman
+    fi
+
     # Don't add the key if already present in authorized_keys
     if ! grep -q -F "$DB_POSTGRES_PUBLIC_KEY" ~barman/.ssh/authorized_keys;
     then
