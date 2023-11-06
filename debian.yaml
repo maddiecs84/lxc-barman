@@ -102,7 +102,7 @@ files:
 
     [Service]
     Type=simple
-    ExecStart=/etc/prometheus/node-exporter/pdc
+    ExecStart=/etc/prometheus/node-exporter/node_exporter
     SyslogIdentifier=node_exporter
     Restart=always
 
